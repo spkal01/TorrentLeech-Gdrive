@@ -26,7 +26,8 @@ from tobrot import (
     EDIT_SLEEP_TIME_OUT,
     CUSTOM_FILE_NAME
 )
-from pyrogram import (
+from pyrogram.errors import MessageNotModified
+from pyrogram.types import (
 	InlineKeyboardButton,
 	InlineKeyboardMarkup,
 	Message
@@ -50,6 +51,7 @@ async def aria_start():
     aria2_daemon_start_cmd.append("--rpc-max-request-size=1024M")
     aria2_daemon_start_cmd.append("--seed-ratio=0.0")
     aria2_daemon_start_cmd.append("--seed-time=1")
+    aria2_daemon_start_cmd.append("--max-overall-upload-limit=1K")
     aria2_daemon_start_cmd.append("--split=10")
     #aria2_daemon_start_cmd.append(f"--bt-stop-timeout={MAX_TIME_TO_WAIT_FOR_TORRENTS_TO_START}")
     #
@@ -480,19 +482,28 @@ async def check_progress_for_dl(aria2, gid, event, previous_message):
             await asyncio.sleep(EDIT_SLEEP_TIME_OUT)
             await event.edit(f"Downloaded Successfully: `{file.name}`")
             return True
+    except aria2p.client.ClientException:
+        pass
+    except MessageNotModified:
+        pass
+    except RecursionError:
+        file.remove(force=True)
+        await event.edit(
+            "Download Auto Canceled :\n\n"
+            "Your Torrent/Link is Dead.".format(
+                file.name
+            )
+        )
+        return False
     except Exception as e:
         LOGGER.info(str(e))
         if " not found" in str(e) or "'file'" in str(e):
-            await event.edit("Download Canceled")
-            return False
-        elif " depth exceeded" in str(e):
-            file.remove(force=True)
-            await event.edit("Download Auto Canceled\nYour Torrent/Link is Dead.")
+            await event.edit("Download Canceled :\n<code>{}</code>".format(file.name))
             return False
         else:
             LOGGER.info(str(e))
-            await event.edit("<u>error</u> :\n`{}` \n\n#error".format(str(e)))
-            return
+            await event.edit("<u>error</u> :\n<code>{}</code> \n\n#error".format(str(e)))
+            return False
 # https://github.com/jaskaranSM/UniBorg/blob/6d35cf452bce1204613929d4da7530058785b6b1/stdplugins/aria.py#L136-L164
 
 
